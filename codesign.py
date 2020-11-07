@@ -6,6 +6,7 @@
 
 
 
+import logging
 import configparser
 import argparse
 from distutils import util
@@ -50,6 +51,8 @@ def get_config(args, default_config=None, filename='codesign.ini'):
 def get_args():
     parser = argparse.ArgumentParser(description='Commandline Parser')
     
+    parser.add_argument('-v', '--verbose', action='count', default=1)
+    
     parser.add_argument('-V', '--version', dest='version',
                        action='store_true', default=False)
     
@@ -76,6 +79,14 @@ def get_args():
     parser.add_argument('-t', '--staple', dest='staple_only',
                        action='store_true', default=None,
                        help='stape the notarization to the the package, but take no further action (can be combined with -s, -p, -n)')
+    
+    parser.add_argument('-T', '--notarize_timer', type=int, default=60,
+                       metavar="INT",
+                       help='base time to wait between checking notarization status with apple')
+    
+    parser.add_argument('-C', '--num_checks', type=int, default=5, 
+                       metavar="INT",
+                       help='number of times to check notarization status with apple -- each check doubles notarization_timer')
     
     
 #     known_args, unknown_args = parser.parse_known_args()
@@ -145,13 +156,18 @@ def sign(config):
         'signature': f'--sign {config["identification"]["application_id"]}',
         'files': ' '.join(config['package_details']['file_list'])
     }
-    
+        
     final_list = [i if i is not None else '' for k, i in args.items()]
+    logging.debug('running command:')
+    logging.debug(' '.join(final_list))
+
     print(f'signing files: {args["files"]}')
     
     return_code, stdout, stderr = run_command(final_list)
-    for each in (stderr, stdout):
-        print(str(each, 'utf-8'))
+    logging.debug(f'return code: {return_code}')
+    logging.debug(f'stdout: {stdout}')
+    logging.debug(f'stderr: {stderr}')
+    
     return return_code, stdout, stderr
     
 
@@ -163,11 +179,11 @@ def sign(config):
 def package(config):
     pkg_temp = tempfile.TemporaryDirectory()
     pkg_temp_path = Path(pkg_temp.name)
-    
     install_path = config['package_details']['installation_path']
     for file in config['package_details']['file_list']:
         file_name = Path(file).name
-        return_code, stderr, stdout = run_command(shlex.split(f'ditto {file} {pkg_temp_path/file_name}'))
+        command = f'ditto {file} {pkg_temp_path/install_path/file_name}'
+        return_code, stderr, stdout = run_command(shlex.split(command))
         if return_code > 0:
             pkg_temp.cleanup()
             return return_code, stderr, stdout
@@ -177,17 +193,22 @@ def package(config):
         'identifier': f'--identifier {config["package_details"]["bundle_id"]}.pkg',
         'signature': f'--sign {config["identification"]["installer_id"]}',
         'args': '--timestamp',
+        'version': f'--version {config["package_details"]["version"]}',
         'root': f'--root {pkg_temp_path} / ./{config["package_details"]["package_name"]}.pkg'
         
     }
     
     print(f'packaging {config["package_details"]["package_name"]}.pkg')
     final_list = [i if i is not None else '' for k, i in args.items()]
-    return_code, stderr, stdout = run_command(final_list)
     
-    for each in (stderr, stdout):
-        if len(each) > 0:
-            print(str(each, 'utf-8'))
+    logging.debug('running command:')
+    logging.debug(' '.join(final_list))    
+    
+    return_code, stdout, stderr = run_command(final_list)
+    
+    logging.debug(f'return code: {return_code}')
+    logging.debug(f'stdout: {stdout}')
+    logging.debug(f'stderr: {stderr}')
         
     pkg_temp.cleanup()    
     return return_code, stdout, stderr
@@ -210,8 +231,14 @@ def notarize(config):
  
     
     final_list = [i for k, i, in notarize_args.items()]
+    logging.debug('running command:')
+    logging.debug(' '.join(final_list))    
+    
     return_code, stdout, stderr = run_command(final_list)
-            
+    
+    logging.debug(f'return code: {return_code}')
+    logging.debug(f'stdout: {stdout}')
+    logging.debug(f'stderr: {stderr}')           
    
     return return_code, stdout, stderr
 
@@ -223,7 +250,6 @@ def notarize(config):
 def check_notarization(stdout, config):
     notarize_max_check = config['main']['notrarize_max_check']
     notarize_check = 0
-    success = {}
     notarized = False
     
     
@@ -232,20 +258,33 @@ def check_notarization(stdout, config):
         if 'requestuuid' in line.lower():
             my_id = line.split('=')
             uuids.append(my_id[1].strip())    
-    
+    logging.debug('uuids found: ')
+    logging.debug(uuids)
 
+    check_args = {
+        'command': 'xcrun altool',
+        'info': f'--notarization-info {uuids[0]}',
+        'username': f'--username {config["identification"]["apple_id"]}',
+        'password': f'--password {config["identification"]["password"]}'
+    }
+    final_list = [i for k, i in check_args.items()]    
+    
+    
     while not notarized:
+        status = {}
+        success = None
         print('checking notarization status')
         notarize_check += 1
-        print(f'check: {notarize_check}')
-        check_args = {
-            'command': 'xcrun altool',
-            'info': f'--notarization-info {uuids[0]}',
-            'username': f'--username {config["identification"]["apple_id"]}',
-            'password': f'--password {config["identification"]["password"]}'
-        }
-        final_list = [i for k, i in check_args.items()]
+        print(f'check: {notarize_check} of {notarize_max_check}')
+
+        logging.debug('running command:')
+        logging.debug(' '.join(final_list))    
+
         return_code, stdout, stderr = run_command(final_list)
+
+        logging.debug(f'return code: {return_code}')
+        logging.debug(f'stdout: {stdout}')
+        logging.debug(f'stderr: {stderr}')
 
         if stdout:
             lines = str(stdout, 'utf-8').splitlines()
@@ -253,15 +292,34 @@ def check_notarization(stdout, config):
             for l in lines:
                 if 'status' in l.lower():
                     vals = l.split(':')
-                    success[vals[0].strip()] = vals[1].strip()
+                    status[vals[0].strip().lower()] = vals[1].strip()
+                        
+            try:
+                if status['status'] == 'success':
+                    success = True
+                if status['status'] == 'invalid':
+                    success = False
+            except KeyError as e:
+                logging.debug(f'inconclusive notarization status data returned: {status}')
 
-            if success:
-                notarized=True    
+
+            logging.debug('status: ')
+            logging.debug(status)
+
+            if success is True:
+                logging.debug('successfully notarized')
+                notarized=True
+            elif success is False:
+                logging.debug('notarization failed')
+                break
             else:
+                print(f'notarization not complete: {status}')
                 if notarize_check >= notarize_max_check-1:
+                    print('notarization failed')
                     break
                 sleep_timer = config['main']['notarize_timer']*notarize_check
                 print(f'sleeping for {sleep_timer} seconds')
+                logging.debug(f'notarization not complete; sleeping for {sleep_timer}')
                 sleep(sleep_timer)
     return notarized
 
@@ -278,7 +336,17 @@ def staple(config):
     }
     
     final_list = [i for k, i in args.items()]
+    
+    logging.debug('running command:')
+    logging.debug(' '.join(final_list))    
+
+    
     return_code, stdout, stderr = run_command(final_list)
+
+    logging.debug(f'return code: {return_code}')
+    logging.debug(f'stdout: {stdout}')
+    logging.debug(f'stderr: {stderr}')
+
     
     return return_code, stdout, stderr
 
@@ -319,6 +387,7 @@ def process_return(return_value, stdout, stderr):
 
 
 def main():
+    logger = logging.getLogger(__name__)
     version = '0.1'
     expected_config_keys = {
         'identification': {
@@ -338,12 +407,17 @@ def main():
     }
     run_all = True
     
-    notarize_timer = 60
-    notrarize_max_check = 5
+#     notarize_timer = 60
+#     notrarize_max_check = 5
     halt = False
     
     args = get_args()
 
+    verbose = 50 - (args.verbose*10) 
+    if verbose < 10:
+        verbose = 10
+    logging.root.setLevel(verbose)
+    
     if args.version:
         print(f'{sys.argv[0]} V{version}')
         return
@@ -355,10 +429,13 @@ def main():
         return
     
     config.update({'main': {
-        'notarize_timer': notarize_timer,
-        'notrarize_max_check': notrarize_max_check,
+        'notarize_timer': args.notarize_timer,
+        'notrarize_max_check': args.num_checks,
         'new_config': args.new_config}
                   })
+    
+    logging.debug('using config:')
+    logging.debug(config)
     
     if validate_config(config, expected_config_keys):
         print('exiting')
@@ -382,7 +459,7 @@ def main():
             halt = True
         
     if args.package_only or run_all and not halt:
-        print('pakcaging...')
+        print('packaging...')
         r, o, e = package(config)
         process_return(r, o, e)
         if r > 0:
@@ -419,7 +496,22 @@ def main():
 
 
 
+sys.argv = []
+sys.argv.extend(['foo', '-v', '-v', '-v', '-v', 'hello.ini'])
+
+
+
+
+
+
 if __name__ == '__main__':
     c = main()
+
+
+
+
+
+
+
 
 
