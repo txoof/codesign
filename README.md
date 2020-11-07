@@ -7,6 +7,12 @@ As of MacOS Catalina, all distributed binaries must be signed and notarized usin
 
 Apple's documentation for this process is ***ABSOLUTELY*** terrible. For a guide to doing this manually see [Signing_and_Notarizing_HOWTO](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md)
 
+## Requirements
+See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md) for help in obtaining these requirements.
+* Paid apple developer's account
+* Developer ID Application certificate
+* Developer ID Installer certificate
+
 ## Quick Start
 1) Download [codesign](https://github.com/txoof/codesign/raw/main/codesign.tgz)
 2) Unpack and place somehwere in your `$PATH`
@@ -50,6 +56,10 @@ optional arguments:
 ## Codesign Configuration File Structure
 <a name="configFile"> </a>
 For help creating certificates and app-specific passwords see: [Signing_and_Notarizing_HOWTO](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md)
+
+Use `security find-identity -p basic -v` to view Certificate strings
+
+Use `curl -LJO https://raw.githubusercontent.com/txoof/codesign/main/entitlements_sample.plist` to quickly download the a sample `entitlements.plist`
 ```
 # All [sections] and values are required unless otherwise noted
 # whitespace and comments are ignored
