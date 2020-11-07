@@ -50,6 +50,9 @@ def get_config(args, default_config=None, filename='codesign.ini'):
 def get_args():
     parser = argparse.ArgumentParser(description='Commandline Parser')
     
+    parser.add_argument('-V', '--version', dest='version',
+                       action='store_true', default=False)
+    
     parser.add_argument('-N', '--new', dest='new_config', 
                         action='store_true', default=False,
                        help='create a new sample configuration with name "codesign.ini" in current directory')
@@ -316,6 +319,7 @@ def process_return(return_value, stdout, stderr):
 
 
 def main():
+    version = '0.1'
     expected_config_keys = {
         'identification': {
             'application_id': 'Unique Substring of Developer ID Application Cert',
@@ -340,6 +344,10 @@ def main():
     
     args = get_args()
 
+    if args.version:
+        print(f'{sys.argv[0]} V{version}')
+        return
+    
     config = get_config(args=args, default_config=expected_config_keys)
     if not config:
         print('no configuration file provided')
