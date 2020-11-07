@@ -1,0 +1,417 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+
+
+
+
+
+import configparser
+import argparse
+from distutils import util
+import subprocess
+import shlex
+import tempfile
+from pathlib import Path
+from time import sleep
+import sys
+
+
+
+
+
+
+def get_config(args, default_config=None, filename='codesign.ini'):
+    file = args.config
+    config = configparser.ConfigParser()
+    
+    if file:
+        print (f'using configuration file: {file}')
+        config.read(file)
+    elif default_config and args.new_config:
+        config.read_dict(default_config)
+        print(f'writing default config file: {filename}')
+        try:
+            with open(filename, 'w') as blank_config:
+                config.write(blank_config)
+        except OSError as e:
+            print(f'could not create {filename} due to error: {e}')
+        return {}
+    else:
+        return {}
+
+    return {s:dict(config.items(s)) for s in config.sections()}
+
+
+
+
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description='Commandline Parser')
+    
+    parser.add_argument('-N', '--new', dest='new_config', 
+                        action='store_true', default=False,
+                       help='create a new sample configuration with name "codesign.ini" in current directory')
+    
+    parser.add_argument('config', nargs='?', type=str, default=None,
+                       help='configuration file to use when codesigning',
+                       metavar='CODESIGN_CONFIG.INI')
+    
+    parser.add_argument('-s', '--sign', dest='sign_only',
+                       action='store_true', default=None,
+                       help='sign the executables, but take no further action (can be combined with -p, -n, -t)')
+    
+    parser.add_argument('-p', '--package', dest='package_only',
+                       action='store_true', default=None,
+                       help='package the executables, but take no further action (can be combined with -s, -n, -t)')
+    
+    parser.add_argument('-n', '--notarize', dest='notarize_only',
+                       action='store_true', default=None,
+                       help='notarize the package, but take no further action (can be combined with -s, -p, -t)')
+
+    parser.add_argument('-t', '--staple', dest='staple_only',
+                       action='store_true', default=None,
+                       help='stape the notarization to the the package, but take no further action (can be combined with -s, -p, -n)')
+    
+    
+#     known_args, unknown_args = parser.parse_known_args()
+    args = parser.parse_args()
+#     return(known_args, unknown_args)
+    return args
+
+
+
+
+
+
+def validate_config(config, expected_keys):
+    missing = {}
+    for section, keys in expected_keys.items():
+        if not section in config.keys():
+            missing[section] = expected_keys[section]
+            continue
+        for key in keys:
+            if not key in config[section].keys():
+                if not section in missing:
+                    missing[section] = {}
+                missing[section][key] = keys[key]
+                
+    if missing:
+        print(f'Config file "{args.config}" is missing values:')
+        for section, values in missing_values.items():
+            print(f'[{section}]')
+            for k, v in values.items():
+                print(f'\t{k}: {v}')
+                    
+    return missing
+
+
+
+
+
+
+def run_command(command_list):
+    cmd = subprocess.Popen(shlex.split(' '.join(command_list)), 
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+    stderr, stdout = cmd.communicate()
+    return cmd.returncode, stderr, stdout
+
+
+
+
+
+
+def sign(config):
+    
+    try:
+        entitlements = util.strtobool(config['package_details']['entitlements'])
+    except (AttributeError, ValueError):
+        entitlements = config['package_details']['entitlements']
+    
+    if (not entitlements) or (entitlements == 'None'):
+        entitlements = None
+        
+    config['package_details']['entitlements'] = entitlements
+
+    args = {
+        'command': 'codesign',
+        'args': '--deep --force --timestamp --options=runtime',
+        'entitlements': f'--entitlements {config["package_details"]["entitlements"]}' if config["package_details"]["entitlements"] else None,
+        'signature': f'--sign {config["identification"]["application_id"]}',
+        'files': ' '.join(config['package_details']['file_list'])
+    }
+    
+    final_list = [i if i is not None else '' for k, i in args.items()]
+    print(f'signing files: {args["files"]}')
+    
+    return_code, stdout, stderr = run_command(final_list)
+    for each in (stderr, stdout):
+        print(str(each, 'utf-8'))
+    return return_code, stdout, stderr
+    
+
+
+
+
+
+
+def package(config):
+    pkg_temp = tempfile.TemporaryDirectory()
+    pkg_temp_path = Path(pkg_temp.name)
+    
+    install_path = config['package_details']['installation_path']
+    for file in config['package_details']['file_list']:
+        file_name = Path(file).name
+        return_code, stderr, stdout = run_command(shlex.split(f'ditto {file} {pkg_temp_path/file_name}'))
+        if return_code > 0:
+            pkg_temp.cleanup()
+            return return_code, stderr, stdout
+    
+    args = {
+        'command': 'productbuild',
+        'identifier': f'--identifier {config["package_details"]["bundle_id"]}.pkg',
+        'signature': f'--sign {config["identification"]["installer_id"]}',
+        'args': '--timestamp',
+        'root': f'--root {pkg_temp_path} / ./{config["package_details"]["package_name"]}.pkg'
+        
+    }
+    
+    print(f'packaging {config["package_details"]["package_name"]}.pkg')
+    final_list = [i if i is not None else '' for k, i in args.items()]
+    return_code, stderr, stdout = run_command(final_list)
+    
+    for each in (stderr, stdout):
+        if len(each) > 0:
+            print(str(each, 'utf-8'))
+        
+    pkg_temp.cleanup()    
+    return return_code, stdout, stderr
+
+
+
+
+
+
+def notarize(config):
+    notarize_args = {
+        'command': 'xcrun altool',
+        'args': '--notarize-app',
+        'bundle_id': f'--primary-bundle-id {config["package_details"]["bundle_id"]}',
+        'username': f'--username={config["identification"]["apple_id"]}',
+        'password': f'--password {config["identification"]["password"]}',
+        'file': f'--file ./{config["package_details"]["package_name"]}.pkg'
+    }
+    
+ 
+    
+    final_list = [i for k, i, in notarize_args.items()]
+    return_code, stdout, stderr = run_command(final_list)
+            
+   
+    return return_code, stdout, stderr
+
+
+
+
+
+
+def check_notarization(stdout, config):
+    notarize_max_check = config['main']['notrarize_max_check']
+    notarize_check = 0
+    success = {}
+    notarized = False
+    
+    
+    uuids = []
+    for line in str(stdout, 'utf-8').splitlines():
+        if 'requestuuid' in line.lower():
+            my_id = line.split('=')
+            uuids.append(my_id[1].strip())    
+    
+
+    while not notarized:
+        print('checking notarization status')
+        notarize_check += 1
+        print(f'check: {notarize_check}')
+        check_args = {
+            'command': 'xcrun altool',
+            'info': f'--notarization-info {uuids[0]}',
+            'username': f'--username {config["identification"]["apple_id"]}',
+            'password': f'--password {config["identification"]["password"]}'
+        }
+        final_list = [i for k, i in check_args.items()]
+        return_code, stdout, stderr = run_command(final_list)
+
+        if stdout:
+            lines = str(stdout, 'utf-8').splitlines()
+
+            for l in lines:
+                if 'status' in l.lower():
+                    vals = l.split(':')
+                    success[vals[0].strip()] = vals[1].strip()
+
+            if success:
+                notarized=True    
+            else:
+                if notarize_check >= notarize_max_check-1:
+                    break
+                sleep_timer = config['main']['notarize_timer']*notarize_check
+                print(f'sleeping for {sleep_timer} seconds')
+                sleep(sleep_timer)
+    return notarized
+
+
+
+
+
+
+def staple(config):
+    args = {
+        'command': 'xcrun stapler',
+        'args': 'staple',
+        'package': f'{config["package_details"]["package_name"]}.pkg'
+    }
+    
+    final_list = [i for k, i in args.items()]
+    return_code, stdout, stderr = run_command(final_list)
+    
+    return return_code, stdout, stderr
+
+
+
+
+
+
+def process_return(return_value, stdout, stderr):
+    def byte_print(byte_str):
+        if isinstance(byte_str, bytes):
+            for line in str(byte_str, 'utf-8').splitlines():
+                print(line)
+        else:
+            print(byte_str)
+            
+
+    if len(stdout) > 0:
+        print('OUTPUT: ')
+        byte_print(stdout)
+    if len(stderr) > 0:
+        print('ERRORS:')
+        byte_print(stderr)
+        
+    if return_value > 0:
+        retval = False
+        print('failed\n\n')
+    else:
+        retval = True
+        print('success\n\n')
+
+    return retval
+    
+
+
+
+
+
+
+def main():
+    expected_config_keys = {
+        'identification': {
+            'application_id': 'Unique Substring of Developer ID Application Cert',
+            'installer_id': 'Unique Substring of Developer ID Installer Cert',
+            'apple_id': 'developer@domain.com',
+            'password': '@keychain:App-Specific-Password-Name-In-Keychain',
+        },
+        'package_details': {
+            'package_name': 'nameofpackage',
+            'bundle_id': 'com.developer.packagename',
+            'file_list': "include_file1, include_file2",
+            'installation_path': '/Applications/',
+            'entitlements': 'None',
+            'version': '0.0.0'
+        }
+    }
+    run_all = True
+    
+    notarize_timer = 60
+    notrarize_max_check = 5
+    halt = False
+    
+    args = get_args()
+
+    config = get_config(args=args, default_config=expected_config_keys)
+    if not config:
+        print('no configuration file provided')
+        print(f'try:\n$ {sys.argv[0]} -h')
+        return
+    
+    config.update({'main': {
+        'notarize_timer': notarize_timer,
+        'notrarize_max_check': notrarize_max_check,
+        'new_config': args.new_config}
+                  })
+    
+    if validate_config(config, expected_config_keys):
+        print('exiting')
+        return
+        
+    # split the file list into an actual list
+    try:
+        file_list = config['package_details']['file_list'].split(',')
+        config['package_details']['file_list'] = file_list
+    except KeyError:
+        pass
+    
+    if args.notarize_only or args.package_only or args.sign_only or args.staple_only:
+        run_all = False
+        
+    if args.sign_only or run_all:
+        print('signing...')
+        r, o, e = sign(config)
+        process_return(r, o, e)
+        if r > 0:
+            halt = True
+        
+    if args.package_only or run_all and not halt:
+        print('pakcaging...')
+        r, o, e = package(config)
+        process_return(r, o, e)
+        if r > 0:
+            halt = True
+    
+    if args.notarize_only or run_all and not halt:
+        print('notarizing...')
+        r, o, e = notarize(config)
+        process_return(r, o, e)
+        if r > 0:
+            halt = True
+        else:
+            if check_notarization(o, config):
+                print('notaization process at Apple completed')
+            else:
+                print('notariztion process did not complete or was inconclusive')
+                print(f'check manually with: ')
+                print(f'xcrun tool --notarize-history 0 -u {config["identification"]["apple_id"]} -p {config["identification"]["password"]}')
+                halt = True
+    
+    if args.staple_only or run_all and not halt:
+        print('stapling...')
+        r, o, e = staple(config)
+        process_return(r, o, e)
+        if r > 0:
+            halt = True
+        
+    
+    return config        
+    
+
+
+
+
+
+
+if __name__ == '__main__':
+    c = main()
+
+
