@@ -2,15 +2,21 @@
 Apple requires that all distributed binaries are signed and notarized using a paid Apple Developer account. This can be done using commandline tools for binaries created with tools such as PyInstaller, or compiled using gcc.
 
 ## Setup
+If you already have a developer account with `Developer ID Application` and `Developer ID Installer` certificates configured in XCode, skip this step
+
 * Create a developer account with Apple
   - https://developer.apple.com and shell out $99 for a developer account. *Theives*
 * Download and install X-Code from the Apple App Store 
 * Open and run X-Code app and install whatever extras it requires
-* Open the preferences pane (cmd+,)  
-  - click the `+` in the lower right corner
+* Open the preferences pane (cmd+,) and choose *Accounts*(
+  - click the `+` in the lower left corner
   - choose `Apple ID`
   - enter your apple ID and password
   - Previously created keys can be downloaded and installed from https://developer.apple.com
+* Select the developer account you wish to use
+* Choose *Manage Certificates...*
+* Click the `+` in the lower left corner and choose *Developer ID Application*
+* Click the `+` in the lower left corner and choose *Developer ID Installer*
 
 ## Create an App-Specific password for altool to use
 * [Instructions from Apple](https://support.apple.com/en-us/HT204397)
@@ -20,7 +26,7 @@ Apple requires that all distributed binaries are signed and notarized using a pa
   - Account Name: your developer account email
   - Password: the application-specific password you just created
 
-## Create an executable binary with Pyinstaller
+## Create an executable binary with Pyinstaller or other tool
 **NB!** Additional args such as `--add-data` may be needed to build a functional binary
 * Create a onefile binary
   - `pyinstaller --onefile myapp.py`
