@@ -52,9 +52,11 @@ If you already have a developer account with `Developer ID Application` and `Dev
   - `mkdir /tmp/myapp`
 * Use ditto to build the pkg installer structure
   - `ditto /path/to/myapp /tmp/myapp/path/to/install/location`
+    - to install application "WhizBang" into `/Applications/` on the target use: `ditto ~/src/whiz_bang/dist/whizBang /tmp/whiz_bang/Applications/`
   - repeat for all files that should be packaged
-* build the pkackage 
+* build the package 
  - `productbuild --identifier "com.your.pkgname.pkg" --sign "HASH_OF_INSTALLER_ID" --timestamp --root /tmp/myapp / myapp.pkg`
+ - **NB!** the format for the `--root` option is as follows: `--root` `<ditto path>` `<relative path on target system to install from>` `<signed .pkg file>`  
 
 ## Notarize
 * `xcrun altool --notarize-app --primary-bundle-id "com.foobar.fooapp" --username="developer@foo.com" --password "@keychain:Developer-altool" --file ./myapp.pkg`
