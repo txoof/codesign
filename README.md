@@ -14,15 +14,15 @@ See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notariz
 * Developer ID Installer certificate
 
 ## Quick Start
-1) Download [codesign](https://github.com/txoof/codesign/raw/main/codesign.tgz)
+1) Download [pycodesign](https://github.com/txoof/codesign/raw/main/pycodesign.tgz)
 2) Unpack and place somehwere in your `$PATH`
 3) Enter directory containing the binaries you wish to sign
-4) run: `codesign.py -N` to create a template configuration file
+4) run: `pycodesign.py -N` to create a template configuration file
 5) edit the configuration file (see [below](#configFile) for more details
-6) run `codesign.py yourconfig.ini` to begin the signing and notarization process
+6) run `pycodesign.py yourconfig.ini` to begin the signing and notarization process
 7) Enter your username and password as needed to unlock your keychain
-8) Once the package is submitted to Apple, `codesign` will check to see if the process is complete. 
-   * Each time `codesign` checks, it requires you to unlock your keychain
+8) Once the package is submitted to Apple, `pycodesign` will check to see if the process is complete. 
+   * Each time `pycodesign` checks, it requires you to unlock your keychain
    * Each time it checks, it doubles the wait time (0, 60 sec, 120 sec...) until finally giving up
    * Check your email or manually check the notarization status using `xcrun altool --notarization-history 0 -u "developer@***" -p "@keychain:Developer-altool"`
 8) rejoyce in your signed .pkg file
@@ -32,25 +32,37 @@ Basic Usage:
 `$ codesign.py my_config.ini`
 
 ```
-usage: codesign.py [-h] [-V] [-N] [-s] [-p] [-n] [-t] [CODESIGN_CONFIG.INI]
+usage: pycodesign.py [-h] [-v] [-V] [-N] [-s] [-p] [-n] [-t] [-T <INTEGER>]
+                     [-C <INTEGER>]
+                     [<PYCODESIGN_CONFIG.INI>]
 
-Commandline Parser
+PyCodeSign -- Code Signing and Notarization Assistant
 
 positional arguments:
-  CODESIGN_CONFIG.INI  configuration file to use when codesigning
+  <PYCODESIGN_CONFIG.INI>
+                        configuration file to use when codesigning
 
 optional arguments:
-  -h, --help           show this help message and exit
+  -h, --help            show this help message and exit
+  -v, --verbose
   -V, --version
-  -N, --new            create a new sample configuration with name "codesign.ini" in current directory
-  -s, --sign           sign the executables, but take no further action (can be combined with -p, -n,
-                       -t)
-  -p, --package        package the executables, but take no further action (can be combined with -s,
-                       -n, -t)
-  -n, --notarize       notarize the package, but take no further action (can be combined with -s, -p,
-                       -t)
-  -t, --staple         stape the notarization to the the package, but take no further action (can be
-                       combined with -s, -p, -n)
+  -N, --new             create a new sample configuration with name
+                        "pycodesign.ini" in current directory
+  -s, --sign            sign the executables, but take no further action
+                        (can be combined with -p, -n, -t)
+  -p, --package         package the executables, but take no further action
+                        (can be combined with -s, -n, -t)
+  -n, --notarize        notarize the package, but take no further action
+                        (can be combined with -s, -p, -t)
+  -t, --staple          stape the notarization to the the package, but take
+                        no further action (can be combined with -s, -p, -n)
+  -T <INTEGER>, --notarize_timer <INTEGER>
+                        base time in seconds to wait between checking
+                        notarization status with apple (default 60)
+  -C <INTEGER>, --num_checks <INTEGER>
+                        number of times to check notarization status with
+                        apple (default 5) -- each check doubles
+                        notarize_timer
 ```
 
 ## Codesign Configuration File Structure
@@ -88,7 +100,7 @@ file_list = include_file1, include_file2
 # path where the Apple .pkg installer will install the tools
 # such as /Applications or /usr/local/bin
 installation_path = /Applications/
-# entitlements XML -- binaries with embedded libraries such as those 
+# entitlements XML -- binaries with embedded libraries such as those use 'None' to skip
 # produced by PyInstlaler require a special entitlements.plist
 # see the a sample here https://github.com/txoof/codesign/blob/main/entitlements_sample.plist
 entitlements = None
