@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 from time import sleep
 import sys
+from shutil import rmtree
 
 
 
@@ -71,6 +72,10 @@ def get_args():
     parser.add_argument('-p', '--package', dest='package_only',
                        action='store_true', default=None,
                        help='package the executables, but take no further action (can be combined with -s, -n, -t)')
+    
+    parser.add_argument('-P', '--package_debug', dest='package_debug', 
+                        action='store_true', default=None,
+                        help='package but leave temporary files in place for debugging')
     
     parser.add_argument('-n', '--notarize', dest='notarize_only',
                        action='store_true', default=None,
@@ -176,17 +181,31 @@ def sign(config):
 
 
 
-def package(config):
-    pkg_temp = tempfile.TemporaryDirectory()
-    pkg_temp_path = Path(pkg_temp.name)
-    install_path = config['package_details']['installation_path']
+def package(config, package_debug=False):
+    pkg_temp = Path(tempfile.mkdtemp()).resolve()
+    
+    install_path = Path(config['package_details']['installation_path']).resolve()
+    
+    temp_path = Path(f'{pkg_temp}/{install_path}')
+    
+#     return pkg_temp, install_path
+    
+    logging.debug(f'pkg_temp: {pkg_temp}')
+    logging.debug(f'install_path: {install_path}')
+    logging.debug(f'temp_path: {temp_path}')
+    
     for file in config['package_details']['file_list']:
-        file_name = Path(file).name
-        command = f'ditto {file} {pkg_temp_path/install_path/file_name}'
-        return_code, stderr, stdout = run_command(shlex.split(command))
-        if return_code > 0:
-            pkg_temp.cleanup()
-            return return_code, stderr, stdout
+        my_file = Path(file).resolve()
+        file_name = my_file.name
+        
+        command = f'ditto {my_file} {temp_path/file_name}'
+        logging.debug(f'running command: {command}')
+        r, o, e = run_command(shlex.split(command))
+        if not process_return(r, o, e):
+            logging.warning('could not ditto file into temp path')
+            if not package_debug:
+                rmtree(pkg_temp)
+            return r, o, e
     
     args = {
         'command': 'productbuild',
@@ -194,7 +213,7 @@ def package(config):
         'signature': f'--sign {config["identification"]["installer_id"]}',
         'args': '--timestamp',
         'version': f'--version {config["package_details"]["version"]}',
-        'root': f'--root {pkg_temp_path} / ./{config["package_details"]["package_name"]}.pkg'
+        'root': f'--root {pkg_temp} / ./{config["package_details"]["package_name"]}.pkg'
         
     }
     
@@ -204,14 +223,72 @@ def package(config):
     logging.debug('running command:')
     logging.debug(' '.join(final_list))    
     
-    return_code, stdout, stderr = run_command(final_list)
+    r, o, e = run_command(final_list)
     
-    logging.debug(f'return code: {return_code}')
-    logging.debug(f'stdout: {stdout}')
-    logging.debug(f'stderr: {stderr}')
+    
+#     logging.debug(f'return code: {return_code}')
+#     logging.debug(f'stdout: {stdout}')
+#     logging.debug(f'stderr: {stderr}')
+    
+    if not package_debug:
+        rmtree(pkg_temp, ignore_errors=True)
+    else:
+        print(f'Package debugging active:')
+        print(f'Temp files: {pkg_temp}')
+    return r, o, e       
         
-    pkg_temp.cleanup()    
-    return return_code, stdout, stderr
+    
+
+
+
+
+
+
+# def package(config, package_debug=False):
+#     pkg_temp = tempfile.mkdtemp()
+#     pkg_temp_path = Path(pkg_temp).resolve()
+#     install_path = Path(config['package_details']['installation_path']).resolve()
+#     logging.debug(f'using pkg_temp_path: {pkg_temp_path}')
+#     logging.debug(f'install_path: {install_path}')
+#     for file in config['package_details']['file_list']:
+#         my_file = Path(file).resolve()
+#         file_name = my_file.name
+#         logging.debug(f'copying file: {file}')
+#         command = f'ditto {file} {pkg_temp_path/install_path/file_name}'
+#         logging.debug(f'run command:\n {command}')
+#         return_code, stderr, stdout = run_command(shlex.split(command))
+#         if return_code > 0:
+#             pkg_temp.cleanup()
+#             return return_code, stderr, stdout
+    
+#     args = {
+#         'command': 'productbuild',
+#         'identifier': f'--identifier {config["package_details"]["bundle_id"]}.pkg',
+#         'signature': f'--sign {config["identification"]["installer_id"]}',
+#         'args': '--timestamp',
+#         'version': f'--version {config["package_details"]["version"]}',
+#         'root': f'--root {pkg_temp_path} / ./{config["package_details"]["package_name"]}.pkg'
+        
+#     }
+    
+#     print(f'packaging {config["package_details"]["package_name"]}.pkg')
+#     final_list = [i if i is not None else '' for k, i in args.items()]
+    
+#     logging.debug('running command:')
+#     logging.debug(' '.join(final_list))    
+    
+#     return_code, stdout, stderr = run_command(final_list)
+    
+#     logging.debug(f'return code: {return_code}')
+#     logging.debug(f'stdout: {stdout}')
+#     logging.debug(f'stderr: {stderr}')
+    
+#     if not package_debug:
+#         rmtree(pkg_temp_path, ignore_errors=True)
+#     else:
+#         print(f'Package debugging active:')
+#         print(f'Temp files: {pkg_temp_path}')
+#     return return_code, stdout, stderr
 
 
 
@@ -448,8 +525,19 @@ def main():
     except KeyError:
         pass
     
-    if args.notarize_only or args.package_only or args.sign_only or args.staple_only:
-        run_all = False
+    
+    check_args =[args.notarize_only,
+                 args.package_only,
+                 args.sign_only,
+                 args.staple_only,
+                 args.package_debug ]
+        
+    for each in check_args:
+        if each:
+            run_all = False
+    
+#     if args.notarize_only or args.package_only or args.sign_only or args.staple_only or args.package_debug:
+#         run_all = False
         
     if args.sign_only or run_all:
         print('signing...')
@@ -458,9 +546,9 @@ def main():
         if r > 0:
             halt = True
         
-    if args.package_only or run_all and not halt:
+    if args.package_only or args.package_debug or run_all and not halt:
         print('packaging...')
-        r, o, e = package(config)
+        r, o, e = package(config, args.package_debug)
         process_return(r, o, e)
         if r > 0:
             halt = True
@@ -486,7 +574,7 @@ def main():
         process_return(r, o, e)
         if r > 0:
             halt = True
-        
+
     
     return config        
     
