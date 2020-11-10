@@ -92,7 +92,11 @@ def get_args():
     parser.add_argument('-C', '--num_checks', type=int, default=5, 
                        metavar="<INTEGER>",
                        help='number of times to check notarization status with apple (default 5) -- each check doubles notarize_timer')
-    
+
+    parser.add_argument('-O', '--pkg_version', type=str, 
+                        default=None, 
+                        metavar="<VERSION STRING>",
+                        help='overide the version number in the .ini file and use supplied version number.')    
     
 #     known_args, unknown_args = parser.parse_known_args()
     args = parser.parse_args()
@@ -510,6 +514,9 @@ def main():
         'notrarize_max_check': args.num_checks,
         'new_config': args.new_config}
                   })
+    
+    if args.pkg_version:
+        config['package_details']['version'] = args.pkg_version
     
     logging.debug('using config:')
     logging.debug(config)
