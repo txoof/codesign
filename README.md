@@ -18,6 +18,7 @@ See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notariz
 2) Unpack and place somehwere in your `$PATH`
 3) Enter directory containing the binaries you wish to sign
 4) run: `pycodesign.py -N` to create a template configuration file
+    * use `security find-identity -p basic -v` to find identity strings for use in configuration file
 5) edit the configuration file (see [below](#configFile) for more details
 6) run `pycodesign.py yourconfig.ini` to begin the signing and notarization process
 7) Enter your username and password as needed to unlock your keychain
