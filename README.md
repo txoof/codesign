@@ -101,9 +101,9 @@ file_list = include_file1, include_file2
 # path where the Apple .pkg installer will install the tools
 # such as /Applications or /usr/local/bin
 installation_path = /Applications/
-# entitlements XML -- binaries with embedded libraries such as those use 'None' to skip
+# entitlements XML -- binaries with embedded libraries such as those 
 # produced by PyInstlaler require a special entitlements.plist
-# see the a sample here https://github.com/txoof/codesign/blob/main/entitlements_sample.plist
+# see a sample here https://github.com/txoof/codesign/blob/main/entitlements_sample.plist
 entitlements = None
 # your version number
 version = 0.0.0
