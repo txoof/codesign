@@ -121,8 +121,8 @@ def validate_config(config, expected_keys):
                 missing[section][key] = keys[key]
                 
     if missing:
-        print(f'Config file "{args.config}" is missing values:')
-        for section, values in missing_values.items():
+        print(f'Config file is missing the following values:')
+        for section, values in missing.items():
             print(f'[{section}]')
             for k, v in values.items():
                 print(f'\t{k}: {v}')
@@ -520,7 +520,7 @@ def main():
     
     logging.debug('using config:')
     logging.debug(config)
-    
+                
     if validate_config(config, expected_config_keys):
         print('exiting')
         return
@@ -591,14 +591,15 @@ def main():
 
 
 
+# import sys
+# sys.argv = ['foo', '-s', '-n', '-p', '-t', "./folderAudit_codesign.ini"]
+
+
+
+
+
+
 if __name__ == '__main__':
     c = main()
-
-
-
-
-
-
-
 
 
