@@ -15,7 +15,7 @@ See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notariz
 * Local Software:
    * X-Code
    * altool - install with `sudo xcode-select -r`
-         * Resolve this error `unable to find utility "altool", not a developer tool or in PATH` using [these instructions](https://stackoverflow.com/questions/56604758/macos-notarization-altool-cannot-be-found)
+       * Resolve this error `unable to find utility "altool", not a developer tool or in PATH` using [these instructions](https://stackoverflow.com/questions/56604758/macos-notarization-altool-cannot-be-found)
 
 ## Quick Start
 1) Download [pycodesign](https://github.com/txoof/codesign/raw/main/pycodesign.tgz)
