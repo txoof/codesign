@@ -5,7 +5,7 @@ Apple requires that all distributed binaries are signed and notarized using a pa
 If you already have a developer account with `Developer ID Application` and `Developer ID Installer` certificates configured in XCode, skip this step
 
 * Create a developer account with Apple
-  - https://developer.apple.com and shell out $99 for a developer account. *Theives*
+  - https://developer.apple.com and shell out $99 for a developer account. *Thieves*
 * Download and install X-Code from the Apple App Store 
 * Open and run X-Code app and install whatever extras it requires
 * Open the preferences pane (cmd+,) and choose *Accounts*(
@@ -106,12 +106,12 @@ If you already have a developer account with `Developer ID Application` and `Dev
              bundle_identifier='com.txoof.helloworld'
              )
   ```
- * **NOTE!** Appbundles will not execute properly -- they must be run by execuing the `bundle.app/Contents/MacOS/myapp` 
+ * **NOTE!** Appbundles will not execute properly -- they must be run by executing the `bundle.app/Contents/MacOS/myapp` 
 
 ## package as a dmg
 **NB! This may not work for single file executables -- use the PKG method above**
 * Create a `.dmg`:
-  - clean any uneeded files out of `./dist`; only the .app should remain
+  - clean any unneeded files out of `./dist`; only the .app should remain
   - `hdiutil create ./myapp.dmg -ov -volname "MyApp" -fs HFS+ -srcfolder "./dist"`
 * Shrink and make read-only:
   - `$hdiutil convert ./myapp.dmg -format UDZO -o myapp.dmg`
