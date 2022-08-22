@@ -3,7 +3,7 @@ Python3 script for signing, packaging, notarizing and stapling Apple command lin
 
 This script is specifically targeted at codesigning, notarizing, creating `.pkg` files and stapling the notarization onto **commandline tools** written and compiled outside of Apple Xcode. This was created specifically for notarizing and signing python tools created with PyInstaller. 
 
-As of MacOS Catalina, all distributed binaries must be signed and notarized using an apple developer account. This account costs $99 per year. *Theives*.
+As of MacOS Catalina, all distributed binaries must be signed and notarized using an apple developer account. This account costs $99 per year. *Thieves*.
 
 Apple's documentation for this process is ***ABSOLUTELY*** terrible. For a guide to doing this manually see [Signing_and_Notarizing_HOWTO](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md)
 
@@ -19,7 +19,7 @@ See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notariz
 
 ## Quick Start
 1) Download [pycodesign](https://github.com/txoof/codesign/raw/main/pycodesign.tgz)
-2) Unpack and place somehwere in your `$PATH`
+2) Unpack and place somewhere in your `$PATH`
 3) Enter directory containing the binaries you wish to sign
 4) run: `pycodesign.py -N` to create a template configuration file
     * use `security find-identity -p basic -v` to find identity strings for use in configuration file
