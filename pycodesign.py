@@ -6,10 +6,12 @@
 
 
 
+version = '0.2'
+
 import logging
 import configparser
 import argparse
-from distutils import util
+# from distutils import util
 import subprocess
 import shlex
 import tempfile
@@ -17,6 +19,28 @@ from pathlib import Path
 from time import sleep
 import sys
 from shutil import rmtree
+
+
+
+
+
+
+def strtobool (val):
+    """Convert a string representation of truth to true (1) or false (0).
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else. 
+    
+    courtesy of 
+    https://github.com/python/cpython/blob/main/Lib/distutils/util.py
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return 1
+    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return 0
+    else:
+        raise ValueError("invalid truth value %r" % (val,))
 
 
 
@@ -50,6 +74,20 @@ def get_config(args, default_config=None, filename='pycodesign.ini'):
 
 
 def get_args():
+
+    saved =[]
+    for k in sys.argv:
+        saved.append(k)
+
+    if '-f' in saved:
+        logging.info('working in interactive jupyter environ')
+        try:
+            sys.argv = sys.argv[:sys.argv.index('-f')]
+        except ValueError as e:
+            pass
+    
+    
+    
     parser = argparse.ArgumentParser(description='PyCodeSign -- Code Signing and Notarization Assistant')
     
     parser.add_argument('-v', '--verbose', action='count', default=1)
@@ -92,7 +130,11 @@ def get_args():
     parser.add_argument('-C', '--num_checks', type=int, default=5, 
                        metavar="<INTEGER>",
                        help='number of times to check notarization status with apple (default 5) -- each check doubles notarize_timer')
-    
+
+    parser.add_argument('-O', '--pkg_version', type=str, 
+                        default=None, 
+                        metavar="<VERSION STRING>",
+                        help='overide the version number in the .ini file and use supplied version number.')    
     
 #     known_args, unknown_args = parser.parse_known_args()
     args = parser.parse_args()
@@ -118,7 +160,7 @@ def validate_config(config, expected_keys):
                 
     if missing:
         print(f'Config file "{args.config}" is missing values:')
-        for section, values in missing_values.items():
+        for section, values in missing.items():
             print(f'[{section}]')
             for k, v in values.items():
                 print(f'\t{k}: {v}')
@@ -145,7 +187,7 @@ def run_command(command_list):
 def sign(config):
     
     try:
-        entitlements = util.strtobool(config['package_details']['entitlements'])
+        entitlements = strtobool(config['package_details']['entitlements'])
     except (AttributeError, ValueError):
         entitlements = config['package_details']['entitlements']
     
@@ -463,9 +505,53 @@ def process_return(return_value, stdout, stderr):
 
 
 
+## Testing code
+#sys.argv = sys.argv[:1]
+
+# sys.argv.extend(['-O', '9.9.9'])
+# sys.argv.append('insert_files_codesign.ini')
+
+
+# expected_config_keys = {
+#         'identification': {
+#             'application_id': 'Unique Substring of Developer ID Application Cert',
+#             'installer_id': 'Unique Substring of Developer ID Installer Cert',
+#             'apple_id': 'developer@domain.com',
+#             'password': '@keychain:App-Specific-Password-Name-In-Keychain',
+#         },
+#         'package_details': {
+#             'package_name': 'nameofpackage',
+#             'bundle_id': 'com.developer.packagename',
+#             'file_list': "include_file1, include_file2",
+#             'installation_path': '/Applications/',
+#             'entitlements': 'None',
+#             'version': '0.0.0'
+#         }
+#     }
+
+# logging.root.setLevel("DEBUG")
+# args = get_args()
+# config = get_config(args=args, default_config=expected_config_keys)
+
+# config.update({'main': {
+#         'notarize_timer': args.notarize_timer,
+#         'notrarize_max_check': args.num_checks,
+#         'new_config': args.new_config}
+#                   })
+
+# if args.pkg_version:
+#     config['package_details']['version'] = args.pkg_version
+
+# validate_config(config, expected_config_keys)
+
+
+
+
+
+
 def main():
     logger = logging.getLogger(__name__)
-    version = '0.1'
+
     expected_config_keys = {
         'identification': {
             'application_id': 'Unique Substring of Developer ID Application Cert',
@@ -510,6 +596,9 @@ def main():
         'notrarize_max_check': args.num_checks,
         'new_config': args.new_config}
                   })
+    
+    if args.pkg_version:
+        config['package_details']['version'] = args.pkg_version
     
     logging.debug('using config:')
     logging.debug(config)
