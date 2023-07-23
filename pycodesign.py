@@ -6,7 +6,7 @@
 
 
 
-version = '0.2'
+version = '0.3'
 
 import logging
 import configparser
@@ -123,13 +123,13 @@ def get_args():
                        action='store_true', default=None,
                        help='stape the notarization to the the package, but take no further action (can be combined with -s, -p, -n)')
     
-    parser.add_argument('-T', '--notarize_timer', type=int, default=60,
-                       metavar="<INTEGER>",
-                       help='base time in seconds to wait between checking notarization status with apple (default 60)')
+    #parser.add_argument('-T', '--notarize_timer', type=int, default=60,
+    #                   metavar="<INTEGER>",
+    #                   help='base time in seconds to wait between checking notarization status with apple (default 60)')
     
-    parser.add_argument('-C', '--num_checks', type=int, default=5, 
-                       metavar="<INTEGER>",
-                       help='number of times to check notarization status with apple (default 5) -- each check doubles notarize_timer')
+    #parser.add_argument('-C', '--num_checks', type=int, default=5, 
+    #                   metavar="<INTEGER>",
+    #                   help='number of times to check notarization status with apple (default 5) -- each check doubles notarize_timer')
 
     parser.add_argument('-O', '--pkg_version', type=str, 
                         default=None, 
@@ -159,7 +159,7 @@ def validate_config(config, expected_keys):
                 missing[section][key] = keys[key]
                 
     if missing:
-        print(f'Config file "{args.config}" is missing values:')
+        print('Config file is missing values:')
         for section, values in missing.items():
             print(f'[{section}]')
             for k, v in values.items():
@@ -339,12 +339,13 @@ def package(config, package_debug=False):
 
 def notarize(config):
     notarize_args = {
-        'command': 'xcrun altool',
-        'args': '--notarize-app',
-        'bundle_id': f'--primary-bundle-id {config["package_details"]["bundle_id"]}',
-        'username': f'--username={config["identification"]["apple_id"]}',
-        'password': f'--password {config["identification"]["password"]}',
-        'file': f'--file ./{config["package_details"]["package_name"]}.pkg'
+        'command': 'xcrun notarytool',
+        'args': 'submit --wait',
+        #'bundle_id': f'--primary-bundle-id {config["package_details"]["bundle_id"]}',
+        #'username': f'--username={config["identification"]["apple_id"]}',
+        #'password': f'--password {config["identification"]["password"]}',
+        'keychain-profile': f'--keychain-profile {config["identification"]["keychain-profile"]}',
+        'file': f'{config["package_details"]["package_name"]}.pkg'
     }
     
  
@@ -556,8 +557,7 @@ def main():
         'identification': {
             'application_id': 'Unique Substring of Developer ID Application Cert',
             'installer_id': 'Unique Substring of Developer ID Installer Cert',
-            'apple_id': 'developer@domain.com',
-            'password': '@keychain:App-Specific-Password-Name-In-Keychain',
+            'keychain-profile': 'Name-of-stored-keychain-profile'
         },
         'package_details': {
             'package_name': 'nameofpackage',
@@ -591,11 +591,11 @@ def main():
         print(f'try:\n$ {sys.argv[0]} -h')
         return
     
-    config.update({'main': {
-        'notarize_timer': args.notarize_timer,
-        'notrarize_max_check': args.num_checks,
-        'new_config': args.new_config}
-                  })
+    #config.update({'main': {
+    #    'notarize_timer': args.notarize_timer,
+    #    'notrarize_max_check': args.num_checks,
+    #    'new_config': args.new_config}
+    #              })
     
     if args.pkg_version:
         config['package_details']['version'] = args.pkg_version
@@ -646,16 +646,13 @@ def main():
         print('notarizing...')
         r, o, e = notarize(config)
         process_return(r, o, e)
-        if r > 0:
-            halt = True
+        if r == 0:
+            print('notaization process at Apple completed')
         else:
-            if check_notarization(o, config):
-                print('notaization process at Apple completed')
-            else:
-                print('notariztion process did not complete or was inconclusive')
-                print(f'check manually with: ')
-                print(f'xcrun tool --notarize-history 0 -u {config["identification"]["apple_id"]} -p {config["identification"]["password"]}')
-                halt = True
+            print('notariztion process did not complete or was inconclusive')
+            print(f'check manually with: ')
+            print(f'xcrun notarytool history --keychain-profile {config["identification"]["keychain-profile"]}')
+            halt = True
     
     if args.staple_only or run_all and not halt:
         print('stapling...')

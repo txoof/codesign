@@ -1,11 +1,16 @@
 # codesign
-Python3 script for signing, packaging, notarizing and stapling Apple command line binaries using `altool`. This script only requires Python3 and uses only standard libraries.
+Python3 script for signing, packaging, notarizing and stapling Apple command line binaries using `notarytool`. This script only requires Python3 and uses only standard libraries.
 
 This script is specifically targeted at codesigning, notarizing, creating `.pkg` files and stapling the notarization onto **commandline tools** written and compiled outside of Apple Xcode. This was created specifically for notarizing and signing python tools created with PyInstaller. 
 
 As of MacOS Catalina, all distributed binaries must be signed and notarized using an apple developer account. This account costs $99 per year. *Theives*.
 
 Apple's documentation for this process is ***ABSOLUTELY*** terrible. For a guide to doing this manually see [Signing_and_Notarizing_HOWTO](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md)
+
+## NEW in v0.3
+As of v0.3, this script uses `notarytool` instead of `altool`. `altool` is being deprecated by Apple and will no longer work after November 2023.
+
+If you are updating from a previous version of `pycodesign`, you will need to create a new keychain profile and update your .ini file.
 
 ## Requirements
 See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notarizing_HOWTO.md) for help in obtaining these requirements.
@@ -16,16 +21,17 @@ See [this guide](https://github.com/txoof/codesign/blob/main/Signing_and_Notariz
 ## Quick Start
 1) Download [pycodesign](https://github.com/txoof/codesign/raw/main/pycodesign.tgz)
 2) Unpack and place somehwere in your `$PATH`
-3) Enter directory containing the binaries you wish to sign
-4) run: `pycodesign.py -N` to create a template configuration file
-5) edit the configuration file (see [below](#configFile) for more details
-6) run `pycodesign.py yourconfig.ini` to begin the signing and notarization process
-7) Enter your username and password as needed to unlock your keychain
-8) Once the package is submitted to Apple, `pycodesign` will check to see if the process is complete. 
-   * Each time `pycodesign` checks, it requires you to unlock your keychain
-   * Each time it checks, it doubles the wait time (0, 60 sec, 120 sec...) until finally giving up
-   * Check your email or manually check the notarization status using `xcrun altool --notarization-history 0 -u "developer@***" -p "@keychain:Developer-altool"`
-8) rejoyce in your signed .pkg file
+3) Create a keychain profile for notarization using `xcrun notarytool store-credentials YOUR_PROFILE_NAME --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID`
+    * You will be prompted for your app-specific password.
+    * For more information, see [this article](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool#Save-credentials-in-the-keychain).
+4) Enter directory containing the binaries you wish to sign
+5) run: `pycodesign.py -N` to create a template configuration file
+6) edit the configuration file (see [below](#configFile) for more details
+7) run `pycodesign.py yourconfig.ini` to begin the signing and notarization process
+8) Enter your username and password as needed to unlock your keychain
+9) Once the package is submitted to Apple, `pycodesign` will wait to see if the process is complete. 
+   * Check your email or manually check the notarization status using `xcrun notarytool history --keychain_profile YOUR_PROFILE_NAME`
+10) rejoyce in your signed .pkg file
 
 ## Manual
 Basic Usage:
@@ -56,13 +62,9 @@ optional arguments:
                         (can be combined with -s, -p, -t)
   -t, --staple          stape the notarization to the the package, but take
                         no further action (can be combined with -s, -p, -n)
-  -T <INTEGER>, --notarize_timer <INTEGER>
-                        base time in seconds to wait between checking
-                        notarization status with apple (default 60)
-  -C <INTEGER>, --num_checks <INTEGER>
-                        number of times to check notarization status with
-                        apple (default 5) -- each check doubles
-                        notarize_timer
+  -O <VERSION STRING>, --pkg_version <VERSION STRING>
+                        overide the version number in the .ini file and use 
+                        supplied version number.
 ```
 
 ## Codesign Configuration File Structure
@@ -84,10 +86,8 @@ application_id = Unique Substring of Developer ID Application Cert
 # unique substring from the Developer ID Installer certificate
 # such as the HASH or the short team has
 installer_id = Unique Substring of Developer ID Installer Cert
-# Apple ID used for signing up for apple developer program
-apple_id = developer@domain.com
-# app-specific password created in the keychain
-password = @keychain:App-Specific-Password-Name-In-Keychain
+# Keychain profile with credentials for app notarization
+keychain-profile = Name-of-stored-keychain-profile
 
 [package_details]
 # name of finished package such as "pdfsplitter" or "whizbangtool"
